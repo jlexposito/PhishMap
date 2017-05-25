@@ -2,6 +2,7 @@ library(jsonlite)
 library(rworldmap)
 library(RColorBrewer)
 library(RCurl)
+library(ggplot2)
 
 #Download data file
 download.file("http://data.phishtank.com/data/online-valid.json.bz2",destfile="data.json",method="libcurl")
@@ -21,3 +22,9 @@ map_color_palette <- RColorBrewer::brewer.pal(n = 7, name = "YlOrRd")
 map_country_data <- mapCountryData(map_data, mapTitle = "PhishMap", nameColumnToPlot="Freq", 
                catMethod = "logFixedWidth", colourPalette = map_color_palette, 
                addLegend = F, lwd = 1, borderCol = 'black')
+#Top 10 table
+top_ten_countries <- head(countries_tables, 10)
+
+#Top 10 bars graphic
+top_ten_countries_bar_plot <- ggplot(data=top_ten_countries, aes(x=countries, y=Freq)) + geom_bar(stat="identity") + theme_minimal()
+top_ten_countries_bar_plot + scale_fill_brewer(palette=map_color_palette)
