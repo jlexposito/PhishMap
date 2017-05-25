@@ -22,4 +22,4 @@ map_data <- joinCountryData2Map(countries_tables, joinCode="ISO2",
 map_color_palette <- RColorBrewer::brewer.pal(n = 7, name = "YlOrRd")
 map_country_data <- mapCountryData(map_data, mapTitle = "PhishMap", nameColumnToPlot="Freq", 
                catMethod = "logFixedWidth", colourPalette = map_color_palette, 
-               addLegend = F, lwd = 1.5)
+               addLegend = F, lwd = 1, borderCol = 'black')
