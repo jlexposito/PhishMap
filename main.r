@@ -38,7 +38,8 @@ top_ten_countries_bar_plot <- ggplot(
                               ) +
                               guides(fill=FALSE) +
                               xlab("Countries") + ylab("Phishing sites") +
-                              geom_bar(stat="identity") + theme_grey()
+                              geom_bar(stat="identity", position = 'dodge') + theme_grey() +
+                              geom_text(aes(label=Freq), position=position_dodge(width=1), vjust=-0.6)
                               
 top_ten_countries_bar_plot + scale_fill_brewer(palette="RdBu", 
                                                name = "Country code \n(ISO2) ",
