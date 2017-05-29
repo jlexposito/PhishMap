@@ -14,6 +14,12 @@ countries = unlist( sapply(data, function(data) data$country[data$country != '']
 countries_tables <- as.data.frame(table(countries))
 countries_tables <- countries_tables[ order(-countries_tables[,2], countries_tables[,1]), ]
 
+#Create IP data frame
+IP = unlist( sapply(data, function(data) data$ip_address[data$ip_address != ''] ) )
+ip_tables <- as.data.frame(table(IP))
+#Find mot used IP addresses
+ip_tables <- ip_tables[ order(-ip_tables[,2], ip_tables[,1]), ]
+
 #Generate MapData
 map_data <- joinCountryData2Map(countries_tables, joinCode="ISO2", 
                             nameJoinColumn="countries", verbose = T)
