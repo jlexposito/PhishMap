@@ -1,3 +1,11 @@
+# Package dependencies:
+
+# install.packages("jsonlite")
+# install.packages("rworldmap")
+# install.packages("RColorBrewer")
+# install.packages("RCurl")
+# install.packages("ggplot2")
+
 library(jsonlite)
 library(rworldmap)
 library(RColorBrewer)
