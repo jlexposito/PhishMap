@@ -5,12 +5,15 @@
 # install.packages("RColorBrewer")
 # install.packages("RCurl")
 # install.packages("ggplot2")
+# install.packages("dplyr")
 
 library(jsonlite)
 library(rworldmap)
 library(RColorBrewer)
 library(RCurl)
 library(ggplot2)
+library(dplyr)
+library(stringr)
 
 #Download data file
 download.file("http://data.phishtank.com/data/online-valid.json.bz2",destfile="data.json",method="libcurl")
@@ -72,9 +75,23 @@ find.country <- function(ip) {
 ip2countries.url <-  "http://download.db-ip.com/free/dbip-country-2017-05.csv.gz"
 download.file(url = ip2countries.url, destfile = "./countries.csv")
 ip2country <- read.csv("./countries.csv", header = F, stringsAsFactors = F)
+names(ip2country) <- c("block_start", "block_end", "country")
+separate_ip4 <- str_match(ip2country$block_start, "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?:[.]|$)){4}")
 
 #### extract ip's & compute numeric equivalent
 ip_tables$ip_long <- sapply(X = ip_tables$IP, ip2long)
-ip_tables.has_na <- apply(ip_tables, 1, function(x){ any(is.na(x)) })
-ip_tables.filtered <- ip_tables[!ip_tables.has_na,]
+ip_tables.filtered <- dplyr::filter(ip_tables, !is.na(ip_long))
 
+#### compute numeric equivalent for ip blocks
+ip2country$block_start_long <- sapply(X = ip2country$block_start, FUN = ip2long)
+ip2country$block_end_long   <- sapply(X = ip2country$block_end, FUN = ip2long)
+
+ip2country <- dplyr::filter(ip2country, !is.na(block_start_long))
+ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
+
+
+# Compute Aggregates -----------------------------------------------------------
+
+ssl.blacklist$country <- sapply(X = ssl.blacklist$ip_long, FUN = find.country)
+
+unique(ssl.blacklist$country)
