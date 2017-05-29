@@ -24,7 +24,7 @@ countries_tables <- countries_tables[ order(-countries_tables[,2], countries_tab
 
 #Create IP data frame
 IP = unlist( sapply(data, function(data) data$ip_address[data$ip_address != ''] ) )
-ip_tables <- as.data.frame(table(IP))
+ip_tables <- as.data.frame(table(IP), stringsAsFactors = F)
 #Find mot used IP addresses
 ip_tables <- ip_tables[ order(-ip_tables[,2], ip_tables[,1]), ]
 
@@ -52,3 +52,29 @@ top_ten_countries_bar_plot <- ggplot(
 top_ten_countries_bar_plot + scale_fill_brewer(palette="RdBu", 
                                                name = "Country code \n(ISO2) ",
                                                type="seq")
+
+#### Custom functions
+
+ip2long <- function(ip) {
+  # transforma a vector de characters
+  ips <- unlist(strsplit(ip, '.', fixed = TRUE))
+  # set up a function to bit-shift, then "OR" the octets
+  octet <- function(x,y) bitops::bitOr(bitops::bitShiftL(x, 8), y)
+  # Reduce applys a function cumulatively left to right
+  return(Reduce(octet, as.integer(ips)))
+}
+
+find.country <- function(ip) {
+  return(dplyr::filter(ip2country, ip >= block_start_long & ip <= block_end_long)$country)
+}
+
+#### IP blocks by country, (https://db-ip.com/db/download/country)
+ip2countries.url <-  "http://download.db-ip.com/free/dbip-country-2017-05.csv.gz"
+download.file(url = ip2countries.url, destfile = "./countries.csv")
+ip2country <- read.csv("./countries.csv", header = F, stringsAsFactors = F)
+
+#### extract ip's & compute numeric equivalent
+ip_tables$ip_long <- sapply(X = ip_tables$IP, ip2long)
+ip_tables.has_na <- apply(ip_tables, 1, function(x){ any(is.na(x)) })
+ip_tables.filtered <- ip_tables[!ip_tables.has_na,]
+
