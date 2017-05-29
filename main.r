@@ -32,6 +32,14 @@ map_country_data <- mapCountryData(map_data, mapTitle = "PhishMap", nameColumnTo
 top_ten_countries <- head(countries_tables, 10)
 
 #Top 10 bars graphic
-bar_colurs <- list(color = colorRampPalette(brewer.pal(11,"Spectral"))(100))
-top_ten_countries_bar_plot <- ggplot(data=top_ten_countries, aes(x=countries, y=Freq, fill=countries, color=countries)) + geom_bar(stat="identity") + theme_minimal()
-top_ten_countries_bar_plot + scale_fill_brewer(palette=bar_colurs)
+top_ten_countries_bar_plot <- ggplot(
+                                data=top_ten_countries, 
+                                aes(x=countries, y=Freq, fill=countries)
+                              ) +
+                              guides(fill=FALSE) +
+                              xlab("Countries") + ylab("Phishing sites") +
+                              geom_bar(stat="identity") + theme_grey()
+                              
+top_ten_countries_bar_plot + scale_fill_brewer(palette="RdBu", 
+                                               name = "Country code \n(ISO2) ",
+                                               type="seq")
