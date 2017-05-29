@@ -3,6 +3,7 @@ library(rworldmap)
 library(RColorBrewer)
 library(RCurl)
 library(ggplot2)
+library(stringr)
 
 #Download data file
 download.file("http://data.phishtank.com/data/online-valid.json.bz2",destfile="data.json",method="libcurl")
@@ -19,6 +20,13 @@ IP = unlist( sapply(data, function(data) data$ip_address[data$ip_address != ''] 
 ip_tables <- as.data.frame(table(IP))
 #Find mot used IP addresses
 ip_tables <- ip_tables[ order(-ip_tables[,2], ip_tables[,1]), ]
+
+#Create Domains data frame
+data_url <- fromJSON(file)$url
+separate_url <- str_match(data_url, "^(?:https?://)?([^/]+)")
+url_tables <- as.data.frame(table(separate_url[,2]))
+#Find mot used Domains
+url_tables <- url_tables[ order(-url_tables[,2], url_tables[,1]), ]
 
 #Generate MapData
 map_data <- joinCountryData2Map(countries_tables, joinCode="ISO2", 
