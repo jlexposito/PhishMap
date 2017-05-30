@@ -6,6 +6,7 @@
 # install.packages("RCurl")
 # install.packages("ggplot2")
 # install.packages("dplyr")
+# install.packages("parallel")
 
 library(jsonlite)
 library(rworldmap)
@@ -14,6 +15,7 @@ library(RCurl)
 library(ggplot2)
 library(dplyr)
 library(stringr)
+library(parallel)
 
 #Download data file
 download.file("http://data.phishtank.com/data/online-valid.json.bz2",destfile="data.json",method="libcurl")
@@ -80,8 +82,8 @@ ip2long <- function(ip) {
   return(Reduce(octet, as.integer(ips)))
 }
 
-find.country <- function(ip) {
-  return(dplyr::filter(ip2country, ip >= block_start_long & ip <= block_end_long)$country)
+find.city <- function(ip) {
+  return(dplyr::filter(ip2country, ip >= block_start_long & ip <= block_end_long)$city)
 }
 
 #### IP blocks by country, (http://download.db-ip.com/free/dbip-city-2017-05.csv.gz)
@@ -96,19 +98,28 @@ ip2country <- dplyr::filter(ip2country, country == "US")
 ip_tables$ip_long <- sapply(X = ip_tables$ip, ip2long)
 
 #### compute numeric equivalent for ip blocks
+# Calculate the number of cores
+no_cores <- detectCores() -1
+
+# Initiate cluster
+cl <- makeCluster(no_cores)
+
 #<cache> true
 ip2country$block_start_long <- sapply(X = ip2country$block_start, FUN = ip2long)
-ip2country$block_end_long   <- sapply(X = ip2country$block_end, FUN = ip2long)
-#</cache> 
-
 ip2country <- dplyr::filter(ip2country, !is.na(block_start_long))
+
+# Parallelized: ~3m 30s
+ip2country$block_end_long <-  parSapply(cl, ip2country$block_end, FUN = ip2long)
 ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
+
+#</cache> 
 
 
 # Compute Aggregates -----------------------------------------------------------
-
-ip_tables$country <- sapply(X = ip_tables$ip_long, FUN = find.country)
-ip_tables <- dplyr::filter(ip2country, !is.na(country))
+clusterExport(cl, "ip2country")
+ip_tables$city <- parSapply(cl, ip_tables$ip_long, FUN = find.city)
+ip_tables <- dplyr::filter(ip_tables, !is.na(city))
+stopCluster(cl)
 
 unique(ip_tables$country)
 
