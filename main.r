@@ -27,7 +27,8 @@ countries_tables <- countries_tables[ order(-countries_tables[,2], countries_tab
 
 #Create IP data frame
 IP = unlist( sapply(data, function(data) data$ip_address[data$ip_address != ''] ) )
-ip_tables <- as.data.frame(table(IP), stringsAsFactors = F)
+ip_tables <- as.data.frame(IP, stringsAsFactors = F)
+
 #Find mot used IP addresses
 ip_tables <- ip_tables[ order(-ip_tables[,2], ip_tables[,1]), ]
 
@@ -76,11 +77,11 @@ ip2countries.url <-  "http://download.db-ip.com/free/dbip-country-2017-05.csv.gz
 download.file(url = ip2countries.url, destfile = "./countries.csv")
 ip2country <- read.csv("./countries.csv", header = F, stringsAsFactors = F)
 names(ip2country) <- c("block_start", "block_end", "country")
-separate_ip4 <- str_match(ip2country$block_start, "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?:[.]|$)){4}")
+ip_tables$IP <- as.list(str_match(ip_tables$IP, "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?:[.]|$)){4}"))
+ip_tables <- dplyr::filter(ip_tables, !is.na(IP))
 
 #### extract ip's & compute numeric equivalent
 ip_tables$ip_long <- sapply(X = ip_tables$IP, ip2long)
-ip_tables.filtered <- dplyr::filter(ip_tables, !is.na(ip_long))
 
 #### compute numeric equivalent for ip blocks
 ip2country$block_start_long <- sapply(X = ip2country$block_start, FUN = ip2long)
@@ -92,6 +93,10 @@ ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
 
 # Compute Aggregates -----------------------------------------------------------
 
-ssl.blacklist$country <- sapply(X = ssl.blacklist$ip_long, FUN = find.country)
+ip_tables$country <- sapply(X = ip_tables$ip_long, FUN = find.country)
+ip_tables <- dplyr::filter(ip2country, !is.na(country))
 
-unique(ssl.blacklist$country)
+unique(ip_tables$country)
+
+# Compute Aggregates -----------------------------------------------------------
+ip_tables.aggregate <- ip_tables %>% count(country, sort = T)
