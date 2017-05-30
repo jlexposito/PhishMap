@@ -84,12 +84,12 @@ find.country <- function(ip) {
   return(dplyr::filter(ip2country, ip >= block_start_long & ip <= block_end_long)$country)
 }
 
-#### IP blocks by country, (https://db-ip.com/db/download/country)
-ip2countries.url <-  "http://download.db-ip.com/free/dbip-country-2017-05.csv.gz"
-download.file(url = ip2countries.url, destfile = "./countries.csv")
-ip2country <- read.csv("./countries.csv", header = F, stringsAsFactors = F)
+#### IP blocks by country, (http://download.db-ip.com/free/dbip-city-2017-05.csv.gz)
+ip2countries.url <-  "http://download.db-ip.com/free/dbip-city-2017-05.csv.gz"
+download.file(url = ip2countries.url, destfile = "./cities.csv")
+ip2country <- read.csv("./cities.csv", header = F, stringsAsFactors = F)
 
-names(ip2country) <- c("block_start", "block_end", "country")
+names(ip2country) <- c("block_start", "block_end", "country", "state", "city")
 ip2country <- dplyr::filter(ip2country, country == "US")
 
 #### extract ip's & compute numeric equivalent
