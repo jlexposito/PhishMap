@@ -118,10 +118,11 @@ ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
 # Compute Aggregates -----------------------------------------------------------
 clusterExport(cl, "ip2country")
 ip_tables$city <- parSapply(cl, ip_tables$ip_long, FUN = find.city)
+ip_tables['city'] <- as.factor(ip_tables$city)
 ip_tables <- dplyr::filter(ip_tables, !is.na(city))
 stopCluster(cl)
 
-unique(ip_tables$country)
+unique(ip_tables$city)
 
 # Compute Aggregates -----------------------------------------------------------
-ip_tables.aggregate <- ip_tables %>% count(country, sort = T)
+ip_tables.aggregate <- ip_tables %>% dplyr::count(ip_tables$city, sort = T)
