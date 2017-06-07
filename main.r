@@ -57,6 +57,15 @@ top_ten_countries_bar_plot + scale_fill_brewer(palette="RdBu",
                                                name = "Country code \n(ISO2) ",
                                                type="seq")
 
+# Top FQDNs
+URLs <- as.data.frame(fromJSON(file)$url)
+colnames(URLs) <- c("URLs")
+FQDNs <- str_match(URLs$URLs, "^(?:https?://)?([^/]+)")
+domains <- as.data.frame(table(FQDNs[,2]))
+#Find most used Domains
+domains <- domains[ order(-domains[,2], domains[,1]), ]
+colnames(domains) <- c("Domains", "Appearances")
+
 #Create IP data frame
 data.dataFrame <- dplyr::filter(data.dataFrame, ip_address != '' )
 usa_data <- dplyr::filter(data.dataFrame, country == 'US')
