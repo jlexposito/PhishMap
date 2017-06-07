@@ -1,10 +1,13 @@
 ---
 title: "Report Phismap"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+options(width=180)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
 ## Resumen
@@ -22,7 +25,7 @@ Este informe realiza un anális sobre una lista de URLs marcadas públicamente c
 
 ## Análisis
 
-```{r load_packages, echo = FALSE, cache = TRUE}
+```{r load_packages, echo = FALSE, cache = FALSE}
 # Paquetes necesarios
 pkg <- c("jsonlite", "rworldmap", "RColorBrewer", "RCurl", "ggplot2", "dplyr", "stringr")
 
@@ -33,39 +36,107 @@ if (length(new.pkg))
 {
     install.packages(new.pkg)  
 }
+
+library(jsonlite)
+library(rworldmap)
+library(RColorBrewer)
+library(RCurl)
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(parallel)
+
 ```
 
 Phistank proporciona una serie de URLs las cuales son reportadas por diferentes usuarios a nivel mundial. Estas URLs son mantenidas en este repositorio mientras permanezcan en línea.
 Phistank permite descargar un archivo con esta información así como una serie de metadatos, entre los que se incluyen el país de origen del dominio presente en la URL, dirección IP, ASN, etc.
 
-Representando la información por país, se puede observar claramente que la gran mayoría de las URLs apuntan a direcciones IP localizadas en Estados Unidos, China y Europa en general.
-
-Ahora tenemos una representación del número real de URLs aljadas en los primeros diez países. Podemos confirmar que, en efecto, el mayor número de las mismas corresponden a Estados Unidos por un amplísimo margen.
-
-Podemos igualmente visualizar cuáles son los bloques CIDR más utilizados, buscando identificar algún tipo de indicio que muestre si estas IPs están ubicadas en grupos de Data Centers específicos.
-
-Igualmente, se puede tomar únicamente el FQDN de cada URL y agruparlas, buscando identificar a través de qué dominios se ejecutan estas campañas de Phising. El resultado muestra que se hace un uso considerable de acortadores de URL como **bit.ly.** Por otra parte, se aprecia una cantidad considerable de URLs alojadas en diferentes dominios o sub-dominios relacionados con Google, como por ejemplo, Google Docs o Google Drive, entre otros.
-
 ```{r load_phistank_data, echo = FALSE, cache = TRUE}
 #Download data file
 download.file("http://data.phishtank.com/data/online-valid.json.bz2",destfile="data.json",method="libcurl")
 file = "data.json"
-data <- fromJSON(file)$details
+data.raw <- fromJSON(file)$details
+data.dataFrame <- do.call(rbind.data.frame, data.raw)
+keep <- c("ip_address", "cidr_block", "country")
+data.dataFrame <- data.dataFrame[keep]
+
+#Create Countries data frame
+data.dataFrame <- dplyr::filter(data.dataFrame, country != '')
+countries <- unlist(data.dataFrame$country)
+countries_tables <- as.data.frame(table(countries))
+countries_tables <- countries_tables[ order(-countries_tables[,2], countries_tables[,1]), ]
+
+# Top FQDNs
+URLs <- as.data.frame(fromJSON(file)$url)
+colnames(URLs) <- c("URLs")
+FQDNs <- str_match(URLs$URLs, "^(?:https?://)?([^/]+)")
+domains <- as.data.frame(table(FQDNs[,2]))
+#Find most used Domains
+domains <- domains[ order(-domains[,2], domains[,1]), ]
+colnames(domains) <- c("Domains", "Appearances")
+
+google_domains <- domains[grep("google", domains$Domains, ignore.case = TRUE), ]
+```
+
+Los datos iniciales tienen la siguiente estructura:
+
+```{r initial_data, echo = FALSE}
+head(data.dataFrame)
+```
+
+Como puede verse, los países son identificados utilizando la norma **ISO 3166**, por lo que utilizamos en nuestro código este estándar, evitando errores al momento de leer los datos. Igualmente, se utiliza una paleta de colores personalizada para poder visualizar de mejor manera los datos en el mapa, al igual que una escala logarítmica pues el número de coincidencias por país difiere enormemente (esto se verá con detalle más adelante).
+
+```{r create_map, echo=TRUE, message= FALSE}
+#Generate MapData
+map_data <- joinCountryData2Map(countries_tables, joinCode="ISO2", 
+                            nameJoinColumn="countries", verbose = F)
+#Change MapColorPalette
+map_color_palette <- RColorBrewer::brewer.pal(n = 7, name = "YlOrRd")
+map_country_data <- mapCountryData(map_data, mapTitle = "PhishMap", nameColumnToPlot="Freq", 
+               catMethod = "logFixedWidth", colourPalette = map_color_palette, 
+               addLegend = F, lwd = 1, borderCol = 'black')
 
 ```
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Representando la información por país, se puede observar que la gran mayoría de las URLs apuntan a direcciones IP localizadas en Estados Unidos, China y Europa en general.
 
-```{r cars}
-summary(cars)
+Ahora tenemos una representación del número real de URLs alojadas en los primeros diez países. Podemos confirmar que, en efecto, el mayor número de las mismas corresponden a Estados Unidos por un amplio margen.
+
+```{r top_ten_countries, echo=FALSE}
+#Top 10 table
+top_ten_countries <- head(countries_tables, 10)
+
+#Top 10 bars graphic
+top_ten_countries_bar_plot <- ggplot(
+                                data=top_ten_countries, 
+                                aes(x=countries, y=Freq, fill=countries)
+                              ) +
+                              guides(fill=FALSE) +
+                              xlab("Countries") + ylab("Phishing sites") +
+                              geom_bar(stat="identity", position = 'dodge') + theme_grey() +
+                              geom_text(aes(label=Freq), position=position_dodge(width=1), vjust=-0.6)
+                              
+top_ten_countries_bar_plot + scale_fill_brewer(palette="RdBu", 
+                                               name = "Country code \n(ISO2) ",
+                                               type="seq")
 ```
 
-## Including Plots
+Podemos igualmente visualizar cuáles son los bloques CIDR más utilizados, buscando identificar algún tipo de indicio que muestre si estas IPs están ubicadas en grupos de Data Centers específicos.
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+Igualmente, se puede tomar únicamente el FQDN de cada URL y agruparlas, buscando identificar a través de qué dominios se ejecutan estas campañas de Phising. El resultado muestra que se hace un uso considerable de acortadores de URL como **bit.ly.** Por otra parte, se aprecia un uso recurrente de diferentes dominios o sub-dominios relacionados con Google, como por ejemplo, Google Docs o Google Drive, entre otros.
+```{r top_ten_fqdns_calculation, echo = FALSE}
+head(domains)
+```
+```{r google_sites, echo = FALSE}
+head(google_domains)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Debido a la amplia predominancia de Estados Unidos con respecto al total de URLs de phising, se consideró adecuado hilar más fino en estas y visualizar los datos por estado y ciudades. Sin embargo, vale la pena mencionar que se encontró una serie de problemas al momento de realizar la geolocalización de las IPs:
+
+- El dataset que permite realizar el *mapping* de direcciones IP a estados y, sobre todo, ciudades, es muy grande. Del orden de millones de entradas.
+- El número de IPs a geolocalizar también es elevado. En la práctica, la eficiencia de la búsqueda de todas las IPs estaría en el orden de O(n*m), con entradas muy grandes.
+- La función para verificar que una IP esté dentro de un rango específico no está optimizada.
+
+En conjunto, todos estos puntos volvieron inviable la ejecución del proyecto sin incluir paralelismo, por lo que fue incluido en nuestro código. Durante nuestra pruebas, realizamos diferentes experimentos variando el número de cores utilizados para el procesamiento de los datos, encontrando como hecho curioso que utilizando todos los cores de la máquina traía en algunos casos resultados incluso peores que cuando se excluía un core. Se llegó a la conclusión de que al no disponer R de un core libre para realizar la orquestación necesaria de los diferentes sub-procesos creados, se generaba un cuello de botella.
+
+
