@@ -16,6 +16,7 @@ library(ggplot2)
 library(dplyr)
 library(stringr)
 library(parallel)
+library(maps)
 
 #Download data file
 download.file("http://data.phishtank.com/data/online-valid.json.bz2",destfile="data.json",method="libcurl")
@@ -82,8 +83,9 @@ ip2long <- function(ip) {
   return(Reduce(octet, as.integer(ips)))
 }
 
-find.city <- function(ip) {
-  return(dplyr::filter(ip2country, ip >= block_start_long & ip <= block_end_long)$city)
+find.cityState <- function(ip) {
+  t <- dplyr::filter(ip2country, ip >= block_start_long & ip <= block_end_long)
+  return ( dplyr::select_(t, .dots = c("city", "state") ) )
 }
 
 #### IP blocks by country, (http://download.db-ip.com/free/dbip-city-2017-05.csv.gz)
@@ -117,12 +119,47 @@ ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
 
 # Compute Aggregates -----------------------------------------------------------
 clusterExport(cl, "ip2country")
-ip_tables$city <- parSapply(cl, ip_tables$ip_long, FUN = find.city)
-ip_tables['city'] <- as.factor(ip_tables$city)
+
+iptables100 <- head(ip_tables, 10)
+test <- parSapply(cl, iptables100$ip_long, FUN = find.cityState)
+test <- t(test)
+colnames(test) <- c("city", "state")
+test.df <- as.data.frame(test)
+
+iptables100$city <- test.df$city
+iptables100$state <- test.df$state
+
+#ip_tables['city'] <- as.factor(ip_tables$city)
 ip_tables <- dplyr::filter(ip_tables, !is.na(city))
+iptables100 <- dplyr::filter(iptables100, !is.na(city))
+
 stopCluster(cl)
 
 unique(ip_tables$city)
+unique(iptables100$state)
+unique(iptables100$city)
 
 # Compute Aggregates -----------------------------------------------------------
 ip_tables.aggregate <- ip_tables %>% dplyr::count(ip_tables$city, sort = T)
+iptables100.aggregateState <- as.data.frame(table(iptables100$state))
+
+
+all_states <- map_data("state")
+all_states$state <- iptables100.aggregateState$Var1
+all_states <- map_data("state")
+
+p <- ggplot()
+p <- p + geom_polygon(data=iptables100.aggregateState, aes(x=long, y=lat, group = group, fill=iptables100.aggregateState$Freq),colour="white") + scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
+P1 <- p + theme_bw()  + labs(fill = "Black to White Incarceration Rates \n Weighted by Relative Population" 
+                             ,title = "State Incarceration Rates by Race, 2010", x="", y="")
+P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
+
+
+mapParams <- mapCountryData(sPDF,
+                            nameColumnToPlot = "n",
+                            catMethod = "categorical",
+                            mapTitle = title,
+                            colourPalette = colorPalette,
+                            addLegend = F,
+                            mapRegion = 'Eurasia')
+do.call(addMapLegend, c(mapParams))
