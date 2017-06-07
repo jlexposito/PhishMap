@@ -1,0 +1,71 @@
+---
+title: "Report Phismap"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Resumen
+
+Este informe realiza un anális sobre una lista de URLs marcadas públicamente como phising. La fuente de estas IPs es [Phistank](https://www.phishtank.com/). Concretamente, se quiere conocer la respuesta a las siguientes preguntas:
+
+- ¿Cuál país aloja la mayor cantidad de Phising?
+
+- ¿En qué proporción se distribuyen estas URLs entre todos los países?
+
+- ¿Cuáles son las direcciones o rangos de direcciones IP más utilizadas para alojar Phising?
+
+- ¿Cuáles son los dominios más utilizados para alojar Phising?
+
+
+## Análisis
+
+```{r load_packages, echo = FALSE, cache = TRUE}
+# Paquetes necesarios
+pkg <- c("jsonlite", "rworldmap", "RColorBrewer", "RCurl", "ggplot2", "dplyr", "stringr")
+
+# Instalar paquetes que no estén instalados
+# Instalar paquetes que no esten instalados
+new.pkg <- pkg[!(pkg %in% installed.packages())]
+if (length(new.pkg)) 
+{
+    install.packages(new.pkg)  
+}
+```
+
+Phistank proporciona una serie de URLs las cuales son reportadas por diferentes usuarios a nivel mundial. Estas URLs son mantenidas en este repositorio mientras permanezcan en línea.
+Phistank permite descargar un archivo con esta información así como una serie de metadatos, entre los que se incluyen el país de origen del dominio presente en la URL, dirección IP, ASN, etc.
+
+Representando la información por país, se puede observar claramente que la gran mayoría de las URLs apuntan a direcciones IP localizadas en Estados Unidos, China y Europa en general.
+
+Ahora tenemos una representación del número real de URLs aljadas en los primeros diez países. Podemos confirmar que, en efecto, el mayor número de las mismas corresponden a Estados Unidos por un amplísimo margen.
+
+Podemos igualmente visualizar cuáles son los bloques CIDR más utilizados, buscando identificar algún tipo de indicio que muestre si estas IPs están ubicadas en grupos de Data Centers específicos.
+
+Igualmente, se puede tomar únicamente el FQDN de cada URL y agruparlas, buscando identificar a través de qué dominios se ejecutan estas campañas de Phising. El resultado muestra que se hace un uso considerable de acortadores de URL como **bit.ly.** Por otra parte, se aprecia una cantidad considerable de URLs alojadas en diferentes dominios o sub-dominios relacionados con Google, como por ejemplo, Google Docs o Google Drive, entre otros.
+
+```{r load_phistank_data, echo = FALSE, cache = TRUE}
+#Download data file
+download.file("http://data.phishtank.com/data/online-valid.json.bz2",destfile="data.json",method="libcurl")
+file = "data.json"
+data <- fromJSON(file)$details
+
+```
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
