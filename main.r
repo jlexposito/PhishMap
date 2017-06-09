@@ -165,3 +165,13 @@ p <- p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$F
 P1 <- p + theme_bw()  + labs(fill = "Phishing IPs" 
                              ,title = "Phishing in US states", x="", y="")
 P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
+
+#Get google Maps map
+map<-get_map(location='united states', zoom=3, maptype = "terrain",
+             source='google',color='color')
+
+# plot it with ggplot2
+ggmap(map) + geom_point(
+  aes(x=long, y=lat, colour=Freq), 
+  data=Total, alpha=.5, na.rm = T)  + 
+  scale_color_gradient(low="beige", high="blue")
