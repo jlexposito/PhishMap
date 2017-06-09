@@ -144,7 +144,7 @@ En conjunto, todos estos puntos volvieron inviable la ejecución del proyecto si
 
 Por otra parte, se realizaron pruebas en una máquina más potente con un número más elevado de cores; sin embargo, nos encontramos con un problema diferente y es que el ordenador se quedó sin memoria disponible. Concluimos que esto se debe a que cada subproceso tiene en su espacio de memoria una copia por separado del dataframe con la información de geolocalización. Por esta razón, al aumentar demasiado el número de cores, se agota con mucha más rapidez la memoria del equipo.
 
-```{r geolocation, echo=FALSE, cache = TRUE}
+```{r geolocation, cache=TRUE}
 #Create IP data frame
 data.dataFrame <- dplyr::filter(data.dataFrame, ip_address != '' )
 usa_data <- dplyr::filter(data.dataFrame, country == 'US')
@@ -206,13 +206,10 @@ ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
 # Compute Aggregates -----------------------------------------------------------
 clusterExport(cl, "ip2country")
 
-ip_tables100 <- head(ip_tables, 50)
+ip_tables100 <- head(ip_tables, 300)
 cityState <- parSapply(cl, ip_tables100$ip_long, FUN = find.cityState)
 cityState <- t(cityState)
-colnames(cityState) <- c("city", "state")
 cityState <- as.data.frame(cityState)
-keep <- c("city", "state")
-cityState <- cityState[keep]
 
 ip_tables100$city <- cityState$city
 ip_tables100$state <- tolower(cityState$state)
@@ -222,9 +219,6 @@ ip_tables100 <- dplyr::filter(ip_tables100, !is.na(city))
 
 stopCluster(cl)
 
-unique(ip_tables100$city)
-unique(ip_tables100$state)
-
 # Compute Aggregates -----------------------------------------------------------
 ip_tables100.aggregateState <- as.data.frame(table(ip_tables100$state))
 
@@ -232,4 +226,48 @@ all_states <- map_data("state")
 colnames(ip_tables100.aggregateState) <- c("region", "Freq")
 ip_tables100.aggregateState$region <- tolower(ip_tables100.aggregateState$region)
 Total <- merge(all_states, ip_tables100.aggregateState, by.x="region")
+```
+
+Finalmente, tras un tratamiento complejo de los datos, fuimos capaces de generar una serie de mapas los cuales representan todos la misma información: la distribución por estado y ciudad de las URLs alojadas en Estados Unidos. Empleamos tres mapas diferentes porque fuimos encontrando opciones cada vez mejores, pero no descartamos las primeras para reflejar mayor variedad.
+
+```{r maps, echo=FALSE, cache = TRUE}
+
+p <- ggplot()
+p <- p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$Freq), size=1) + 
+  scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
+P1 <- p + theme_bw()  + labs(fill = "Phishing IPs" 
+                             ,title = "Phishing in US states", x="", y="")
+P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
+
+#Get google Maps map
+map<-get_map(location='united states', zoom=4, 
+             maptype = "terrain",
+             source='google',
+             color='color')
+
+ggmap(map) + geom_point(
+  aes(x=long, y=lat, colour=Freq), 
+  data=Total, alpha=.5, na.rm = T)  + 
+  scale_color_gradient(low = "yellow", high = "red", space="Lab")
+
+########## Generate dynamic USA Phishing Map
+l <- list(color = 255, width = 2)
+# specify some map projection/options
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showland = TRUE,
+  landcolor = toRGB("gray85"),
+  subunitwidth = 1,
+  countrywidth = 1,
+  subunitcolor = toRGB("white"),
+  countrycolor = toRGB("white")
+)
+
+plot_geo(Total, locationmode = 'USA-states', sizes = c(min(Total$Freq), max(Total$Freq))) %>%
+  add_markers(
+    x = ~long, y = ~lat, size = ~Freq, color = ~Freq, hoverinfo = "text",
+    text = ~paste(Total$region, "<br />", Total$Freq, " phishing IPs")
+  ) %>%
+  layout(title = 'Dynamic USA Phishing Map', geo = g)
 ```
