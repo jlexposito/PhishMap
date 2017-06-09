@@ -6,7 +6,10 @@
 # install.packages("RCurl")
 # install.packages("ggplot2")
 # install.packages("dplyr")
+# install.packages("stringr")
 # install.packages("parallel")
+# install.packages("maps")
+# install.packages("ggmap")
 
 library(jsonlite)
 library(rworldmap)
@@ -17,6 +20,7 @@ library(dplyr)
 library(stringr)
 library(parallel)
 library(maps)
+require(ggmap)
 
 #Download data file
 download.file("http://data.phishtank.com/data/online-valid.json.bz2",destfile="data.json",method="libcurl")
@@ -116,7 +120,7 @@ no_cores <- detectCores() -1
 cl <- makeCluster(no_cores)
 
 #<cache> true
-ip2country$block_start_long <- sapply(X = ip2country$block_start, FUN = ip2long)
+ip2country$block_start_long <- parSapply(cl, X = ip2country$block_start, FUN = ip2long)
 ip2country <- dplyr::filter(ip2country, !is.na(block_start_long))
 
 # Parallelized: ~3m 30s
@@ -125,50 +129,39 @@ ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
 
 #</cache> 
 
-
 # Compute Aggregates -----------------------------------------------------------
 clusterExport(cl, "ip2country")
 
-iptables100 <- head(ip_tables, 10)
-test <- parSapply(cl, iptables100$ip_long, FUN = find.cityState)
-test <- t(test)
-colnames(test) <- c("city", "state")
-test.df <- as.data.frame(test)
+ip_tables100 <- head(ip_tables, 50)
+cityState <- parSapply(cl, ip_tables100$ip_long, FUN = find.cityState)
+cityState <- t(cityState)
+colnames(cityState) <- c("city", "state")
+cityState <- as.data.frame(cityState)
+keep <- c("city", "state")
+cityState <- cityState[keep]
 
-iptables100$city <- test.df$city
-iptables100$state <- test.df$state
+ip_tables100$city <- cityState$city
+ip_tables100$state <- tolower(cityState$state)
 
 #ip_tables['city'] <- as.factor(ip_tables$city)
-ip_tables <- dplyr::filter(ip_tables, !is.na(city))
-iptables100 <- dplyr::filter(iptables100, !is.na(city))
+ip_tables100 <- dplyr::filter(ip_tables100, !is.na(city))
 
 stopCluster(cl)
 
-unique(ip_tables$city)
-unique(iptables100$state)
-unique(iptables100$city)
+unique(ip_tables100$city)
+unique(ip_tables100$state)
 
 # Compute Aggregates -----------------------------------------------------------
-ip_tables.aggregate <- ip_tables %>% dplyr::count(ip_tables$city, sort = T)
-iptables100.aggregateState <- as.data.frame(table(iptables100$state))
-
+ip_tables100.aggregateState <- as.data.frame(table(ip_tables100$state))
 
 all_states <- map_data("state")
-all_states$state <- iptables100.aggregateState$Var1
-all_states <- map_data("state")
+colnames(ip_tables100.aggregateState) <- c("region", "Freq")
+ip_tables100.aggregateState$region <- tolower(ip_tables100.aggregateState$region)
+Total <- merge(all_states, ip_tables100.aggregateState, by.x="region")
 
 p <- ggplot()
-p <- p + geom_polygon(data=iptables100.aggregateState, aes(x=long, y=lat, group = group, fill=iptables100.aggregateState$Freq),colour="white") + scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
-P1 <- p + theme_bw()  + labs(fill = "Black to White Incarceration Rates \n Weighted by Relative Population" 
-                             ,title = "State Incarceration Rates by Race, 2010", x="", y="")
+p <- p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$Freq),colour="black") + 
+  scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
+P1 <- p + theme_bw()  + labs(fill = "Phishing IPs" 
+                             ,title = "Phishing in US states", x="", y="")
 P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
-
-
-mapParams <- mapCountryData(sPDF,
-                            nameColumnToPlot = "n",
-                            catMethod = "categorical",
-                            mapTitle = title,
-                            colourPalette = colorPalette,
-                            addLegend = F,
-                            mapRegion = 'Eurasia')
-do.call(addMapLegend, c(mapParams))
