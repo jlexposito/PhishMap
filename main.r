@@ -10,6 +10,8 @@
 # install.packages("parallel")
 # install.packages("maps")
 # install.packages("ggmap")
+# install.packages("plotly")
+
 
 library(jsonlite)
 library(rworldmap)
@@ -21,6 +23,7 @@ library(stringr)
 library(parallel)
 library(maps)
 require(ggmap)
+library(plotly)
 
 #Download data file
 download.file("http://data.phishtank.com/data/online-valid.json.bz2",destfile="data.json",method="libcurl")
@@ -167,7 +170,7 @@ P1 <- p + theme_bw()  + labs(fill = "Phishing IPs"
 P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
 
 #Get google Maps map
-map<-get_map(location='united states', zoom=3, maptype = "terrain",
+map<-get_map(location='united states', zoom=4, maptype = "terrain",
              source='google',color='color')
 
 # plot it with ggplot2
@@ -175,3 +178,24 @@ ggmap(map) + geom_point(
   aes(x=long, y=lat, colour=Freq), 
   data=Total, alpha=.5, na.rm = T)  + 
   scale_color_gradient(low="beige", high="blue")
+
+########## Generate dynamic USA Phishing Map
+l <- list(color = 255, width = 2)
+# specify some map projection/options
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showland = TRUE,
+  landcolor = toRGB("gray85"),
+  subunitwidth = 1,
+  countrywidth = 1,
+  subunitcolor = toRGB("white"),
+  countrycolor = toRGB("white")
+)
+
+plot_geo(Total, locationmode = 'USA-states', sizes = c(min(Total$Freq), max(Total$Freq)*2)) %>%
+  add_markers(
+    x = ~long, y = ~lat, size = ~Freq, color = ~Freq, hoverinfo = "text",
+    text = ~paste(Total$region, "<br />", Total$Freq, " phishing IPs")
+  ) %>%
+  layout(title = 'Dynamic USA Phishing Map', geo = g)
