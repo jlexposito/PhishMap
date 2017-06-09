@@ -135,9 +135,13 @@ ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
 # Compute Aggregates -----------------------------------------------------------
 clusterExport(cl, "ip2country")
 
-ip_tables100 <- head(ip_tables, 50)
+ip_tables100 <- head(ip_tables, 700)
 cityState <- parSapply(cl, ip_tables100$ip_long, FUN = find.cityState)
-cityState <- t(cityState)
+tmp <- matrix(NA, nrow = nrow(ip_tables100), ncol = 2)
+for(i in 1:length(cityState)) {
+  tmp[i,] <- c(cityState[[i]][1], cityState[[i]][2]);
+}
+cityState <- tmp
 colnames(cityState) <- c("city", "state")
 cityState <- as.data.frame(cityState)
 keep <- c("city", "state")
@@ -163,21 +167,22 @@ ip_tables100.aggregateState$region <- tolower(ip_tables100.aggregateState$region
 Total <- merge(all_states, ip_tables100.aggregateState, by.x="region")
 
 p <- ggplot()
-p <- p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$Freq),colour="black") + 
+p <- p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$Freq), size=1) + 
   scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
 P1 <- p + theme_bw()  + labs(fill = "Phishing IPs" 
                              ,title = "Phishing in US states", x="", y="")
 P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
 
 #Get google Maps map
-map<-get_map(location='united states', zoom=4, maptype = "terrain",
-             source='google',color='color')
+map<-get_map(location='united states', zoom=4, 
+             maptype = "terrain",
+             source='google',
+             color='color')
 
-# plot it with ggplot2
 ggmap(map) + geom_point(
   aes(x=long, y=lat, colour=Freq), 
   data=Total, alpha=.5, na.rm = T)  + 
-  scale_color_gradient(low="beige", high="blue")
+  scale_color_gradient(low = "yellow", high = "red", space="Lab")
 
 ########## Generate dynamic USA Phishing Map
 l <- list(color = 255, width = 2)
@@ -193,7 +198,7 @@ g <- list(
   countrycolor = toRGB("white")
 )
 
-plot_geo(Total, locationmode = 'USA-states', sizes = c(min(Total$Freq), max(Total$Freq)*2)) %>%
+plot_geo(Total, locationmode = 'USA-states', sizes = c(min(Total$Freq), max(Total$Freq))) %>%
   add_markers(
     x = ~long, y = ~lat, size = ~Freq, color = ~Freq, hoverinfo = "text",
     text = ~paste(Total$region, "<br />", Total$Freq, " phishing IPs")
