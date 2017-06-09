@@ -144,7 +144,7 @@ En conjunto, todos estos puntos volvieron inviable la ejecución del proyecto si
 
 Por otra parte, se realizaron pruebas en una máquina más potente con un número más elevado de cores; sin embargo, nos encontramos con un problema diferente y es que el ordenador se quedó sin memoria disponible. Concluimos que esto se debe a que cada subproceso tiene en su espacio de memoria una copia por separado del dataframe con la información de geolocalización. Por esta razón, al aumentar demasiado el número de cores, se agota con mucha más rapidez la memoria del equipo.
 
-```{r geolocation, echo=FALSE}
+```{r geolocation, echo=FALSE, cache = TRUE}
 #Create IP data frame
 data.dataFrame <- dplyr::filter(data.dataFrame, ip_address != '' )
 usa_data <- dplyr::filter(data.dataFrame, country == 'US')
@@ -206,14 +206,6 @@ ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
 # Compute Aggregates -----------------------------------------------------------
 clusterExport(cl, "ip2country")
 
-ip_tables75 <- head(ip_tables, 75)
-cityState75 <- parSapply(cl, ip_tables75$ip_long, FUN = find.cityState)
-cityState75 <- t(cityState75)
-colnames(cityState75) <- c("city", "state")
-cityState75 <- as.data.frame(cityState75)
-keep <- c("city", "state")
-cityState75 <- cityState75[keep]
-
 ip_tables100 <- head(ip_tables, 50)
 cityState <- parSapply(cl, ip_tables100$ip_long, FUN = find.cityState)
 cityState <- t(cityState)
@@ -240,25 +232,4 @@ all_states <- map_data("state")
 colnames(ip_tables100.aggregateState) <- c("region", "Freq")
 ip_tables100.aggregateState$region <- tolower(ip_tables100.aggregateState$region)
 Total <- merge(all_states, ip_tables100.aggregateState, by.x="region")
-```
-
-Otro problema que encontramos durante la manipulación de los datos fue que, al momento de aplicar la función de geolocalización, el dataframe resultante tomaba un formato inesperado e inservible si tomábamos cualquier muestra mayor que 50 direcciones IPs. Este es el dataframe al tomar exactamente 50 direcciones IPs y determinar su ubicación:
-
-```{r show_50_locations, echo=FALSE}
-head(cityState)
-```
-
-Y este es el dataframe al tomar 75 direcciones IP:
-```{r show_50_ips, echo=FALSE}
-head(cityState75)
-```
-
-Al final, nos vimos obligados a hacer un plot en un mapa con solo 50 direcciones IP. Sin embargo, nos encomtramos con que ggplot no maneja de la mejor forma posible los estados que no contienen datos, por lo que la representación se vuelve muy difícil de interpretar:
-```{r plot_first_map}
-p <- ggplot()
-p <- p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$Freq),colour="black") + 
-  scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
-P1 <- p + theme_bw()  + labs(fill = "Phishing IPs" 
-                             ,title = "Phishing in US states", x="", y="")
-P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
 ```
