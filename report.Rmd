@@ -139,4 +139,123 @@ Debido a la amplia predominancia de Estados Unidos con respecto al total de URLs
 
 En conjunto, todos estos puntos volvieron inviable la ejecución del proyecto sin incluir paralelismo, por lo que fue incluido en nuestro código. Durante nuestra pruebas, realizamos diferentes experimentos variando el número de cores utilizados para el procesamiento de los datos, encontrando como hecho curioso que utilizando todos los cores de la máquina traía en algunos casos resultados incluso peores que cuando se excluía un core. Se llegó a la conclusión de que al no disponer R de un core libre para realizar la orquestación necesaria de los diferentes sub-procesos creados, se generaba un cuello de botella.
 
+Por otra parte, se realizaron pruebas en una máquina más potente con un número más elevado de cores; sin embargo, nos encontramos con un problema diferente y es que el ordenador se quedó sin memoria disponible. Concluimos que esto se debe a que cada subproceso tiene en su espacio de memoria una copia por separado del dataframe con la información de geolocalización. Por esta razón, al aumentar demasiado el número de cores, se agota con mucha más rapidez la memoria del equipo.
 
+```{r geolocation, echo=FALSE}
+#Create IP data frame
+data.dataFrame <- dplyr::filter(data.dataFrame, ip_address != '' )
+usa_data <- dplyr::filter(data.dataFrame, country == 'US')
+
+ip_tables <- as.data.frame(usa_data$ip, stringsAsFactors = F)
+colnames(ip_tables) <- c("ip")
+
+ip_tables <- as.data.frame(str_match(ip_tables$ip, "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?:[.]|$)){4}"), stringsAsFactors = F)
+colnames(ip_tables) <- c("ip")
+
+ip_tables <- dplyr::filter(ip_tables, !is.na(ip))
+
+#Find mot used IP addresses
+ip_tables <- count(ip_tables,ip, sort = T)
+
+#### Custom functions
+ip2long <- function(ip) {
+  # transforma a vector de characters
+  ips <- unlist(strsplit(ip, '.', fixed = TRUE))
+  # set up a function to bit-shift, then "OR" the octets
+  octet <- function(x,y) bitops::bitOr(bitops::bitShiftL(x, 8), y)
+  # Reduce applys a function cumulatively left to right
+  return(Reduce(octet, as.integer(ips)))
+}
+
+find.cityState <- function(ip) {
+  t <- dplyr::filter(ip2country, ip >= block_start_long & ip <= block_end_long)
+  return ( dplyr::select_(t, .dots = c("city", "state") ) )
+}
+
+#### IP blocks by country, (http://download.db-ip.com/free/dbip-city-2017-05.csv.gz)
+ip2countries.url <- "http://download.db-ip.com/free/dbip-city-2017-05.csv.gz"
+download.file(url = ip2countries.url, destfile = "./cities.csv")
+ip2country <- read.csv("./cities.csv", header = F, stringsAsFactors = F)
+
+names(ip2country) <- c("block_start", "block_end", "country", "state", "city")
+ip2country <- dplyr::filter(ip2country, country == "US")
+
+#### extract ip's & compute numeric equivalent
+ip_tables$ip_long <- sapply(X = ip_tables$ip, ip2long)
+
+#### compute numeric equivalent for ip blocks
+# Calculate the number of cores
+no_cores <- detectCores() -1
+
+# Initiate cluster
+cl <- makeCluster(no_cores)
+
+#<cache> true
+ip2country$block_start_long <- parSapply(cl, X = ip2country$block_start, FUN = ip2long)
+ip2country <- dplyr::filter(ip2country, !is.na(block_start_long))
+
+# Parallelized: ~3m 30s
+ip2country$block_end_long <-  parSapply(cl, ip2country$block_end, FUN = ip2long)
+ip2country <- dplyr::filter(ip2country, !is.na(block_end_long))
+
+#</cache> 
+
+# Compute Aggregates -----------------------------------------------------------
+clusterExport(cl, "ip2country")
+
+ip_tables75 <- head(ip_tables, 75)
+cityState75 <- parSapply(cl, ip_tables75$ip_long, FUN = find.cityState)
+cityState75 <- t(cityState75)
+colnames(cityState75) <- c("city", "state")
+cityState75 <- as.data.frame(cityState75)
+keep <- c("city", "state")
+cityState75 <- cityState75[keep]
+
+ip_tables100 <- head(ip_tables, 50)
+cityState <- parSapply(cl, ip_tables100$ip_long, FUN = find.cityState)
+cityState <- t(cityState)
+colnames(cityState) <- c("city", "state")
+cityState <- as.data.frame(cityState)
+keep <- c("city", "state")
+cityState <- cityState[keep]
+
+ip_tables100$city <- cityState$city
+ip_tables100$state <- tolower(cityState$state)
+
+#ip_tables['city'] <- as.factor(ip_tables$city)
+ip_tables100 <- dplyr::filter(ip_tables100, !is.na(city))
+
+stopCluster(cl)
+
+unique(ip_tables100$city)
+unique(ip_tables100$state)
+
+# Compute Aggregates -----------------------------------------------------------
+ip_tables100.aggregateState <- as.data.frame(table(ip_tables100$state))
+
+all_states <- map_data("state")
+colnames(ip_tables100.aggregateState) <- c("region", "Freq")
+ip_tables100.aggregateState$region <- tolower(ip_tables100.aggregateState$region)
+Total <- merge(all_states, ip_tables100.aggregateState, by.x="region")
+```
+
+Otro problema que encontramos durante la manipulación de los datos fue que, al momento de aplicar la función de geolocalización, el dataframe resultante tomaba un formato inesperado e inservible si tomábamos cualquier muestra mayor que 50 direcciones IPs. Este es el dataframe al tomar exactamente 50 direcciones IPs y determinar su ubicación:
+
+```{r show_50_locations, echo=FALSE}
+head(cityState)
+```
+
+Y este es el dataframe al tomar 75 direcciones IP:
+```{r show_50_ips, echo=FALSE}
+head(cityState75)
+```
+
+Al final, nos vimos obligados a hacer un plot en un mapa con solo 50 direcciones IP. Sin embargo, nos encomtramos con que ggplot no maneja de la mejor forma posible los estados que no contienen datos, por lo que la representación se vuelve muy difícil de interpretar:
+```{r plot_first_map}
+p <- ggplot()
+p <- p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$Freq),colour="black") + 
+  scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
+P1 <- p + theme_bw()  + labs(fill = "Phishing IPs" 
+                             ,title = "Phishing in US states", x="", y="")
+P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
+```
