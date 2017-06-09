@@ -45,6 +45,9 @@ library(ggplot2)
 library(dplyr)
 library(stringr)
 library(parallel)
+library(maps)
+require(ggmap)
+library(plotly)
 
 ```
 
